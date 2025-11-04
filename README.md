@@ -1,3 +1,3 @@
 # CROW-B3
 
-*Turning human interactions into intelligence*
+*we do stuff with data*
