@@ -1,0 +1,31 @@
+# Lightweight CI that runs on every PR across the org.
+# Individual service repos should call the reusable workflows.
+# This workflow validates the reusable workflow files themselves.
+name: Validate Workflows
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/**"
+
+jobs:
+  validate:
+    name: Validate workflow syntax
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate YAML syntax
+        run: |
+          pip install yamllint
+          yamllint -d "{extends: default, rules: {line-length: {max: 200}, truthy: disable}}" .github/workflows/
+
+      - name: Check workflow references
+        run: |
+          echo "Reusable workflows found:"
+          ls -la .github/workflows/reusable-*.yml
+          echo ""
+          echo "All workflows:"
+          ls -la .github/workflows/*.yml

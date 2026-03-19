@@ -1,0 +1,739 @@
+# Orchestrated deployment across all CROW services in dependency order.
+# Triggered manually or by repository dispatch from individual service repos.
+#
+# Dependency order:
+#   Tier 1 (no deps):       core-auth-service
+#   Tier 2 (depends on T1): core-user-service, core-billing-service
+#   Tier 3 (depends on T2): core-organization-service, core-product-service,
+#                            core-notification-service, core-analytics-service
+#   Tier 4 (depends on T3): core-interaction-service, core-pattern-service,
+#                            core-chat-service, core-social-collector,
+#                            core-social-processor
+#   Tier 5 (BFF/infra):     bff-chat-service, bff-qna-service, a2a-service,
+#                            mcp-service, web-ingest-service, cctv-ingest-service,
+#                            infra-crawl-service, core-api-gateway
+#   Tier 6 (clients):       auth-client, dashboard-client, landing-client, rogue-store
+
+name: Orchestrated Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        type: choice
+        options:
+          - dev
+          - production
+        default: dev
+      deploy_tier:
+        description: "Deploy up to tier (1-6, or 'all')"
+        required: false
+        type: string
+        default: "all"
+      services_filter:
+        description: "Comma-separated service names to deploy (empty = all)"
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  actions: write
+  contents: read
+
+env:
+  GH_TOKEN: ${{ secrets.CROW_DEPLOY_TOKEN }}
+
+jobs:
+  # ─── Tier 1: Auth foundation ───────────────────────────────────────
+  tier-1-core-auth:
+    name: "T1: core-auth-service"
+    runs-on: ubuntu-latest
+    if: |
+      (inputs.services_filter == '' || contains(inputs.services_filter, 'core-auth-service'))
+    steps:
+      - name: Trigger core-auth-service deploy
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.CROW_DEPLOY_TOKEN }}
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: 'CROW-B3',
+              repo: 'core-auth-service',
+              workflow_id: 'ci.yml',
+              ref: 'main',
+              inputs: {
+                environment: '${{ inputs.environment }}',
+                triggered_by: 'orchestrator'
+              }
+            });
+
+  # ─── Tier 2: User & Billing (depend on Auth) ──────────────────────
+  tier-2-core-user:
+    name: "T2: core-user-service"
+    runs-on: ubuntu-latest
+    needs: [tier-1-core-auth]
+    if: |
+      always() &&
+      (needs.tier-1-core-auth.result == 'success' || needs.tier-1-core-auth.result == 'skipped') &&
+      (inputs.deploy_tier == 'all' || inputs.deploy_tier >= '2') &&
+      (inputs.services_filter == '' || contains(inputs.services_filter, 'core-user-service'))
+    steps:
+      - name: Trigger core-user-service deploy
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.CROW_DEPLOY_TOKEN }}
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: 'CROW-B3',
+              repo: 'core-user-service',
+              workflow_id: 'ci.yml',
+              ref: 'main',
+              inputs: {
+                environment: '${{ inputs.environment }}',
+                triggered_by: 'orchestrator'
+              }
+            });
+
+  tier-2-core-billing:
+    name: "T2: core-billing-service"
+    runs-on: ubuntu-latest
+    needs: [tier-1-core-auth]
+    if: |
+      always() &&
+      (needs.tier-1-core-auth.result == 'success' || needs.tier-1-core-auth.result == 'skipped') &&
+      (inputs.deploy_tier == 'all' || inputs.deploy_tier >= '2') &&
+      (inputs.services_filter == '' || contains(inputs.services_filter, 'core-billing-service'))
+    steps:
+      - name: Trigger core-billing-service deploy
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.CROW_DEPLOY_TOKEN }}
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: 'CROW-B3',
+              repo: 'core-billing-service',
+              workflow_id: 'ci.yml',
+              ref: 'main',
+              inputs: {
+                environment: '${{ inputs.environment }}',
+                triggered_by: 'orchestrator'
+              }
+            });
+
+  # ─── Tier 3: Org, Product, Notification, Analytics ─────────────────
+  tier-3-core-organization:
+    name: "T3: core-organization-service"
+    runs-on: ubuntu-latest
+    needs: [tier-2-core-user, tier-2-core-billing]
+    if: |
+      always() &&
+      (needs.tier-2-core-user.result == 'success' || needs.tier-2-core-user.result == 'skipped') &&
+      (inputs.deploy_tier == 'all' || inputs.deploy_tier >= '3') &&
+      (inputs.services_filter == '' || contains(inputs.services_filter, 'core-organization-service'))
+    steps:
+      - name: Trigger core-organization-service deploy
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.CROW_DEPLOY_TOKEN }}
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: 'CROW-B3',
+              repo: 'core-organization-service',
+              workflow_id: 'ci.yml',
+              ref: 'main',
+              inputs: {
+                environment: '${{ inputs.environment }}',
+                triggered_by: 'orchestrator'
+              }
+            });
+
+  tier-3-core-product:
+    name: "T3: core-product-service"
+    runs-on: ubuntu-latest
+    needs: [tier-2-core-user, tier-2-core-billing]
+    if: |
+      always() &&
+      (needs.tier-2-core-user.result == 'success' || needs.tier-2-core-user.result == 'skipped') &&
+      (inputs.deploy_tier == 'all' || inputs.deploy_tier >= '3') &&
+      (inputs.services_filter == '' || contains(inputs.services_filter, 'core-product-service'))
+    steps:
+      - name: Trigger core-product-service deploy
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.CROW_DEPLOY_TOKEN }}
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: 'CROW-B3',
+              repo: 'core-product-service',
+              workflow_id: 'ci.yml',
+              ref: 'main',
+              inputs: {
+                environment: '${{ inputs.environment }}',
+                triggered_by: 'orchestrator'
+              }
+            });
+
+  tier-3-core-notification:
+    name: "T3: core-notification-service"
+    runs-on: ubuntu-latest
+    needs: [tier-2-core-user, tier-2-core-billing]
+    if: |
+      always() &&
+      (needs.tier-2-core-user.result == 'success' || needs.tier-2-core-user.result == 'skipped') &&
+      (inputs.deploy_tier == 'all' || inputs.deploy_tier >= '3') &&
+      (inputs.services_filter == '' || contains(inputs.services_filter, 'core-notification-service'))
+    steps:
+      - name: Trigger core-notification-service deploy
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.CROW_DEPLOY_TOKEN }}
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: 'CROW-B3',
+              repo: 'core-notification-service',
+              workflow_id: 'ci.yml',
+              ref: 'main',
+              inputs: {
+                environment: '${{ inputs.environment }}',
+                triggered_by: 'orchestrator'
+              }
+            });
+
+  tier-3-core-analytics:
+    name: "T3: core-analytics-service"
+    runs-on: ubuntu-latest
+    needs: [tier-2-core-user, tier-2-core-billing]
+    if: |
+      always() &&
+      (needs.tier-2-core-user.result == 'success' || needs.tier-2-core-user.result == 'skipped') &&
+      (inputs.deploy_tier == 'all' || inputs.deploy_tier >= '3') &&
+      (inputs.services_filter == '' || contains(inputs.services_filter, 'core-analytics-service'))
+    steps:
+      - name: Trigger core-analytics-service deploy
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.CROW_DEPLOY_TOKEN }}
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: 'CROW-B3',
+              repo: 'core-analytics-service',
+              workflow_id: 'ci.yml',
+              ref: 'main',
+              inputs: {
+                environment: '${{ inputs.environment }}',
+                triggered_by: 'orchestrator'
+              }
+            });
+
+  # ─── Tier 4: Interaction, Pattern, Chat, Social ────────────────────
+  tier-4-core-interaction:
+    name: "T4: core-interaction-service"
+    runs-on: ubuntu-latest
+    needs: [tier-3-core-product, tier-3-core-organization]
+    if: |
+      always() &&
+      (needs.tier-3-core-product.result == 'success' || needs.tier-3-core-product.result == 'skipped') &&
+      (inputs.deploy_tier == 'all' || inputs.deploy_tier >= '4') &&
+      (inputs.services_filter == '' || contains(inputs.services_filter, 'core-interaction-service'))
+    steps:
+      - name: Trigger core-interaction-service deploy
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.CROW_DEPLOY_TOKEN }}
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: 'CROW-B3',
+              repo: 'core-interaction-service',
+              workflow_id: 'ci.yml',
+              ref: 'main',
+              inputs: {
+                environment: '${{ inputs.environment }}',
+                triggered_by: 'orchestrator'
+              }
+            });
+
+  tier-4-core-pattern:
+    name: "T4: core-pattern-service"
+    runs-on: ubuntu-latest
+    needs: [tier-3-core-product, tier-3-core-organization]
+    if: |
+      always() &&
+      (needs.tier-3-core-product.result == 'success' || needs.tier-3-core-product.result == 'skipped') &&
+      (inputs.deploy_tier == 'all' || inputs.deploy_tier >= '4') &&
+      (inputs.services_filter == '' || contains(inputs.services_filter, 'core-pattern-service'))
+    steps:
+      - name: Trigger core-pattern-service deploy
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.CROW_DEPLOY_TOKEN }}
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: 'CROW-B3',
+              repo: 'core-pattern-service',
+              workflow_id: 'ci.yml',
+              ref: 'main',
+              inputs: {
+                environment: '${{ inputs.environment }}',
+                triggered_by: 'orchestrator'
+              }
+            });
+
+  tier-4-core-chat:
+    name: "T4: core-chat-service"
+    runs-on: ubuntu-latest
+    needs: [tier-3-core-product, tier-3-core-organization]
+    if: |
+      always() &&
+      (needs.tier-3-core-product.result == 'success' || needs.tier-3-core-product.result == 'skipped') &&
+      (inputs.deploy_tier == 'all' || inputs.deploy_tier >= '4') &&
+      (inputs.services_filter == '' || contains(inputs.services_filter, 'core-chat-service'))
+    steps:
+      - name: Trigger core-chat-service deploy
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.CROW_DEPLOY_TOKEN }}
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: 'CROW-B3',
+              repo: 'core-chat-service',
+              workflow_id: 'ci.yml',
+              ref: 'main',
+              inputs: {
+                environment: '${{ inputs.environment }}',
+                triggered_by: 'orchestrator'
+              }
+            });
+
+  tier-4-core-social-collector:
+    name: "T4: core-social-collector"
+    runs-on: ubuntu-latest
+    needs: [tier-3-core-product, tier-3-core-organization]
+    if: |
+      always() &&
+      (needs.tier-3-core-product.result == 'success' || needs.tier-3-core-product.result == 'skipped') &&
+      (inputs.deploy_tier == 'all' || inputs.deploy_tier >= '4') &&
+      (inputs.services_filter == '' || contains(inputs.services_filter, 'core-social-collector'))
+    steps:
+      - name: Trigger core-social-collector deploy
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.CROW_DEPLOY_TOKEN }}
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: 'CROW-B3',
+              repo: 'core-social-collector',
+              workflow_id: 'ci.yml',
+              ref: 'main',
+              inputs: {
+                environment: '${{ inputs.environment }}',
+                triggered_by: 'orchestrator'
+              }
+            });
+
+  tier-4-core-social-processor:
+    name: "T4: core-social-processor"
+    runs-on: ubuntu-latest
+    needs: [tier-3-core-product, tier-3-core-organization]
+    if: |
+      always() &&
+      (needs.tier-3-core-product.result == 'success' || needs.tier-3-core-product.result == 'skipped') &&
+      (inputs.deploy_tier == 'all' || inputs.deploy_tier >= '4') &&
+      (inputs.services_filter == '' || contains(inputs.services_filter, 'core-social-processor'))
+    steps:
+      - name: Trigger core-social-processor deploy
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.CROW_DEPLOY_TOKEN }}
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: 'CROW-B3',
+              repo: 'core-social-processor',
+              workflow_id: 'ci.yml',
+              ref: 'main',
+              inputs: {
+                environment: '${{ inputs.environment }}',
+                triggered_by: 'orchestrator'
+              }
+            });
+
+  # ─── Tier 5: BFFs, Gateway, Supporting services ───────────────────
+  tier-5-bff-chat:
+    name: "T5: bff-chat-service"
+    runs-on: ubuntu-latest
+    needs: [tier-4-core-interaction, tier-4-core-chat]
+    if: |
+      always() &&
+      (needs.tier-4-core-interaction.result == 'success' || needs.tier-4-core-interaction.result == 'skipped') &&
+      (inputs.deploy_tier == 'all' || inputs.deploy_tier >= '5') &&
+      (inputs.services_filter == '' || contains(inputs.services_filter, 'bff-chat-service'))
+    steps:
+      - name: Trigger bff-chat-service deploy
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.CROW_DEPLOY_TOKEN }}
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: 'CROW-B3',
+              repo: 'bff-chat-service',
+              workflow_id: 'ci.yml',
+              ref: 'main',
+              inputs: {
+                environment: '${{ inputs.environment }}',
+                triggered_by: 'orchestrator'
+              }
+            });
+
+  tier-5-bff-qna:
+    name: "T5: bff-qna-service"
+    runs-on: ubuntu-latest
+    needs: [tier-4-core-interaction, tier-4-core-pattern]
+    if: |
+      always() &&
+      (needs.tier-4-core-interaction.result == 'success' || needs.tier-4-core-interaction.result == 'skipped') &&
+      (inputs.deploy_tier == 'all' || inputs.deploy_tier >= '5') &&
+      (inputs.services_filter == '' || contains(inputs.services_filter, 'bff-qna-service'))
+    steps:
+      - name: Trigger bff-qna-service deploy
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.CROW_DEPLOY_TOKEN }}
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: 'CROW-B3',
+              repo: 'bff-qna-service',
+              workflow_id: 'ci.yml',
+              ref: 'main',
+              inputs: {
+                environment: '${{ inputs.environment }}',
+                triggered_by: 'orchestrator'
+              }
+            });
+
+  tier-5-a2a:
+    name: "T5: a2a-service"
+    runs-on: ubuntu-latest
+    needs: [tier-4-core-interaction, tier-4-core-pattern]
+    if: |
+      always() &&
+      (needs.tier-4-core-interaction.result == 'success' || needs.tier-4-core-interaction.result == 'skipped') &&
+      (inputs.deploy_tier == 'all' || inputs.deploy_tier >= '5') &&
+      (inputs.services_filter == '' || contains(inputs.services_filter, 'a2a-service'))
+    steps:
+      - name: Trigger a2a-service deploy
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.CROW_DEPLOY_TOKEN }}
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: 'CROW-B3',
+              repo: 'a2a-service',
+              workflow_id: 'ci.yml',
+              ref: 'main',
+              inputs: {
+                environment: '${{ inputs.environment }}',
+                triggered_by: 'orchestrator'
+              }
+            });
+
+  tier-5-mcp:
+    name: "T5: mcp-service"
+    runs-on: ubuntu-latest
+    needs: [tier-4-core-interaction, tier-4-core-pattern]
+    if: |
+      always() &&
+      (needs.tier-4-core-interaction.result == 'success' || needs.tier-4-core-interaction.result == 'skipped') &&
+      (inputs.deploy_tier == 'all' || inputs.deploy_tier >= '5') &&
+      (inputs.services_filter == '' || contains(inputs.services_filter, 'mcp-service'))
+    steps:
+      - name: Trigger mcp-service deploy
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.CROW_DEPLOY_TOKEN }}
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: 'CROW-B3',
+              repo: 'mcp-service',
+              workflow_id: 'ci.yml',
+              ref: 'main',
+              inputs: {
+                environment: '${{ inputs.environment }}',
+                triggered_by: 'orchestrator'
+              }
+            });
+
+  tier-5-web-ingest:
+    name: "T5: web-ingest-service"
+    runs-on: ubuntu-latest
+    needs: [tier-4-core-interaction, tier-4-core-pattern]
+    if: |
+      always() &&
+      (needs.tier-4-core-interaction.result == 'success' || needs.tier-4-core-interaction.result == 'skipped') &&
+      (inputs.deploy_tier == 'all' || inputs.deploy_tier >= '5') &&
+      (inputs.services_filter == '' || contains(inputs.services_filter, 'web-ingest-service'))
+    steps:
+      - name: Trigger web-ingest-service deploy
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.CROW_DEPLOY_TOKEN }}
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: 'CROW-B3',
+              repo: 'web-ingest-service',
+              workflow_id: 'ci.yml',
+              ref: 'main',
+              inputs: {
+                environment: '${{ inputs.environment }}',
+                triggered_by: 'orchestrator'
+              }
+            });
+
+  tier-5-cctv-ingest:
+    name: "T5: cctv-ingest-service"
+    runs-on: ubuntu-latest
+    needs: [tier-4-core-interaction, tier-4-core-pattern]
+    if: |
+      always() &&
+      (needs.tier-4-core-interaction.result == 'success' || needs.tier-4-core-interaction.result == 'skipped') &&
+      (inputs.deploy_tier == 'all' || inputs.deploy_tier >= '5') &&
+      (inputs.services_filter == '' || contains(inputs.services_filter, 'cctv-ingest-service'))
+    steps:
+      - name: Trigger cctv-ingest-service deploy
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.CROW_DEPLOY_TOKEN }}
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: 'CROW-B3',
+              repo: 'cctv-ingest-service',
+              workflow_id: 'ci.yml',
+              ref: 'main',
+              inputs: {
+                environment: '${{ inputs.environment }}',
+                triggered_by: 'orchestrator'
+              }
+            });
+
+  tier-5-infra-crawl:
+    name: "T5: infra-crawl-service"
+    runs-on: ubuntu-latest
+    needs: [tier-4-core-interaction, tier-4-core-pattern]
+    if: |
+      always() &&
+      (needs.tier-4-core-interaction.result == 'success' || needs.tier-4-core-interaction.result == 'skipped') &&
+      (inputs.deploy_tier == 'all' || inputs.deploy_tier >= '5') &&
+      (inputs.services_filter == '' || contains(inputs.services_filter, 'infra-crawl-service'))
+    steps:
+      - name: Trigger infra-crawl-service deploy
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.CROW_DEPLOY_TOKEN }}
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: 'CROW-B3',
+              repo: 'infra-crawl-service',
+              workflow_id: 'ci.yml',
+              ref: 'main',
+              inputs: {
+                environment: '${{ inputs.environment }}',
+                triggered_by: 'orchestrator'
+              }
+            });
+
+  tier-5-api-gateway:
+    name: "T5: core-api-gateway"
+    runs-on: ubuntu-latest
+    needs: [tier-4-core-interaction, tier-4-core-pattern, tier-4-core-chat]
+    if: |
+      always() &&
+      (needs.tier-4-core-interaction.result == 'success' || needs.tier-4-core-interaction.result == 'skipped') &&
+      (inputs.deploy_tier == 'all' || inputs.deploy_tier >= '5') &&
+      (inputs.services_filter == '' || contains(inputs.services_filter, 'core-api-gateway'))
+    steps:
+      - name: Trigger core-api-gateway deploy
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.CROW_DEPLOY_TOKEN }}
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: 'CROW-B3',
+              repo: 'core-api-gateway',
+              workflow_id: 'ci.yml',
+              ref: 'main',
+              inputs: {
+                environment: '${{ inputs.environment }}',
+                triggered_by: 'orchestrator'
+              }
+            });
+
+  # ─── Tier 6: Client applications ──────────────────────────────────
+  tier-6-auth-client:
+    name: "T6: auth-client"
+    runs-on: ubuntu-latest
+    needs: [tier-5-api-gateway]
+    if: |
+      always() &&
+      (needs.tier-5-api-gateway.result == 'success' || needs.tier-5-api-gateway.result == 'skipped') &&
+      (inputs.deploy_tier == 'all' || inputs.deploy_tier >= '6') &&
+      (inputs.services_filter == '' || contains(inputs.services_filter, 'auth-client'))
+    steps:
+      - name: Trigger auth-client deploy
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.CROW_DEPLOY_TOKEN }}
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: 'CROW-B3',
+              repo: 'auth-client',
+              workflow_id: 'ci.yml',
+              ref: 'main',
+              inputs: {
+                environment: '${{ inputs.environment }}',
+                triggered_by: 'orchestrator'
+              }
+            });
+
+  tier-6-dashboard-client:
+    name: "T6: dashboard-client"
+    runs-on: ubuntu-latest
+    needs: [tier-5-api-gateway]
+    if: |
+      always() &&
+      (needs.tier-5-api-gateway.result == 'success' || needs.tier-5-api-gateway.result == 'skipped') &&
+      (inputs.deploy_tier == 'all' || inputs.deploy_tier >= '6') &&
+      (inputs.services_filter == '' || contains(inputs.services_filter, 'dashboard-client'))
+    steps:
+      - name: Trigger dashboard-client deploy
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.CROW_DEPLOY_TOKEN }}
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: 'CROW-B3',
+              repo: 'dashboard-client',
+              workflow_id: 'ci.yml',
+              ref: 'main',
+              inputs: {
+                environment: '${{ inputs.environment }}',
+                triggered_by: 'orchestrator'
+              }
+            });
+
+  tier-6-landing-client:
+    name: "T6: landing-client"
+    runs-on: ubuntu-latest
+    needs: [tier-5-api-gateway]
+    if: |
+      always() &&
+      (needs.tier-5-api-gateway.result == 'success' || needs.tier-5-api-gateway.result == 'skipped') &&
+      (inputs.deploy_tier == 'all' || inputs.deploy_tier >= '6') &&
+      (inputs.services_filter == '' || contains(inputs.services_filter, 'landing-client'))
+    steps:
+      - name: Trigger landing-client deploy
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.CROW_DEPLOY_TOKEN }}
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: 'CROW-B3',
+              repo: 'landing-client',
+              workflow_id: 'ci.yml',
+              ref: 'main',
+              inputs: {
+                environment: '${{ inputs.environment }}',
+                triggered_by: 'orchestrator'
+              }
+            });
+
+  tier-6-rogue-store:
+    name: "T6: rogue-store"
+    runs-on: ubuntu-latest
+    needs: [tier-5-api-gateway]
+    if: |
+      always() &&
+      (needs.tier-5-api-gateway.result == 'success' || needs.tier-5-api-gateway.result == 'skipped') &&
+      (inputs.deploy_tier == 'all' || inputs.deploy_tier >= '6') &&
+      (inputs.services_filter == '' || contains(inputs.services_filter, 'rogue-store'))
+    steps:
+      - name: Trigger rogue-store deploy
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.CROW_DEPLOY_TOKEN }}
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: 'CROW-B3',
+              repo: 'rogue-store',
+              workflow_id: 'ci.yml',
+              ref: 'main',
+              inputs: {
+                environment: '${{ inputs.environment }}',
+                triggered_by: 'orchestrator'
+              }
+            });
+
+  # ─── Summary ───────────────────────────────────────────────────────
+  summary:
+    name: Deployment Summary
+    runs-on: ubuntu-latest
+    needs:
+      - tier-1-core-auth
+      - tier-2-core-user
+      - tier-2-core-billing
+      - tier-3-core-organization
+      - tier-3-core-product
+      - tier-3-core-notification
+      - tier-3-core-analytics
+      - tier-4-core-interaction
+      - tier-4-core-pattern
+      - tier-4-core-chat
+      - tier-4-core-social-collector
+      - tier-4-core-social-processor
+      - tier-5-bff-chat
+      - tier-5-bff-qna
+      - tier-5-a2a
+      - tier-5-mcp
+      - tier-5-web-ingest
+      - tier-5-cctv-ingest
+      - tier-5-infra-crawl
+      - tier-5-api-gateway
+      - tier-6-auth-client
+      - tier-6-dashboard-client
+      - tier-6-landing-client
+      - tier-6-rogue-store
+    if: always()
+    steps:
+      - name: Generate summary
+        run: |
+          echo "## CROW Platform Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Environment:** ${{ inputs.environment }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Triggered by:** ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Timestamp:** $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Tier | Service | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|---------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| T1 | core-auth-service | ${{ needs.tier-1-core-auth.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| T2 | core-user-service | ${{ needs.tier-2-core-user.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| T2 | core-billing-service | ${{ needs.tier-2-core-billing.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| T3 | core-organization-service | ${{ needs.tier-3-core-organization.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| T3 | core-product-service | ${{ needs.tier-3-core-product.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| T3 | core-notification-service | ${{ needs.tier-3-core-notification.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| T3 | core-analytics-service | ${{ needs.tier-3-core-analytics.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| T4 | core-interaction-service | ${{ needs.tier-4-core-interaction.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| T4 | core-pattern-service | ${{ needs.tier-4-core-pattern.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| T4 | core-chat-service | ${{ needs.tier-4-core-chat.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| T4 | core-social-collector | ${{ needs.tier-4-core-social-collector.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| T4 | core-social-processor | ${{ needs.tier-4-core-social-processor.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| T5 | bff-chat-service | ${{ needs.tier-5-bff-chat.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| T5 | bff-qna-service | ${{ needs.tier-5-bff-qna.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| T5 | a2a-service | ${{ needs.tier-5-a2a.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| T5 | mcp-service | ${{ needs.tier-5-mcp.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| T5 | web-ingest-service | ${{ needs.tier-5-web-ingest.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| T5 | cctv-ingest-service | ${{ needs.tier-5-cctv-ingest.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| T5 | infra-crawl-service | ${{ needs.tier-5-infra-crawl.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| T5 | core-api-gateway | ${{ needs.tier-5-api-gateway.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| T6 | auth-client | ${{ needs.tier-6-auth-client.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| T6 | dashboard-client | ${{ needs.tier-6-dashboard-client.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| T6 | landing-client | ${{ needs.tier-6-landing-client.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| T6 | rogue-store | ${{ needs.tier-6-rogue-store.result }} |" >> $GITHUB_STEP_SUMMARY
