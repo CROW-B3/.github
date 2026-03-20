@@ -41,7 +41,7 @@ on:
         default: false
     secrets:
       CLOUDFLARE_API_TOKEN:
-        required: true
+        required: false
 
 jobs:
   lint:
@@ -60,6 +60,10 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      - name: Generate Wrangler Types
+        if: inputs.run_typecheck
+        run: bunx wrangler types --env-interface CloudflareBindings
+
       - name: Lint
         if: inputs.run_lint
         run: bun run lint
@@ -75,7 +79,8 @@ jobs:
     if: |
       always() &&
       !inputs.skip_deploy &&
-      (needs.lint.result == 'success' || needs.lint.result == 'skipped')
+      (needs.lint.result == 'success' || needs.lint.result == 'skipped') &&
+      secrets.CLOUDFLARE_API_TOKEN != ''
     environment: ${{ inputs.environment }}
     steps:
       - name: Checkout
