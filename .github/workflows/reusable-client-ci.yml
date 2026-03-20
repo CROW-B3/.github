@@ -46,7 +46,7 @@ on:
         default: false
     secrets:
       CLOUDFLARE_API_TOKEN:
-        required: true
+        required: false
 
 jobs:
   lint:
@@ -80,7 +80,8 @@ jobs:
     if: |
       always() &&
       !inputs.skip_deploy &&
-      (needs.lint.result == 'success' || needs.lint.result == 'skipped')
+      (needs.lint.result == 'success' || needs.lint.result == 'skipped') &&
+      secrets.CLOUDFLARE_API_TOKEN != ''
     environment: ${{ inputs.environment }}
     steps:
       - name: Checkout

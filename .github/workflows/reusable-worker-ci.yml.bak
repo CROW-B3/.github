@@ -33,7 +33,7 @@ on:
         description: "Bun version"
         required: false
         type: string
-        default: "1.3.5"
+        default: "latest"
       skip_deploy:
         description: "Skip deployment (CI only)"
         required: false
