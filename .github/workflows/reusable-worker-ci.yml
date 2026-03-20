@@ -79,8 +79,7 @@ jobs:
     if: |
       always() &&
       !inputs.skip_deploy &&
-      (needs.lint.result == 'success' || needs.lint.result == 'skipped') &&
-      secrets.CLOUDFLARE_API_TOKEN != ''
+      (needs.lint.result == 'success' || needs.lint.result == 'skipped')
     environment: ${{ inputs.environment }}
     steps:
       - name: Checkout
