@@ -20,4 +20,6 @@ modular, self-hostable, and built to be extended.
 
 ---
 
+**project page** — [sdgp.lk/project/7871a64b-baa4-49e7-b2b5-862a9bb3f987](https://www.sdgp.lk/project/7871a64b-baa4-49e7-b2b5-862a9bb3f987)
+
 open source. fork it, break it, improve it — prs welcome.
