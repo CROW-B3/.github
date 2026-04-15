@@ -1,5 +1,10 @@
 # CROW-B3
 
+> [!WARNING]
+> CROW-B3 is now a public archive.
+> Active development has stopped.
+> The repositories remain public for reference and history only.
+
 we build open source infrastructure for collecting, processing, and making sense of data — the full stack, no shortcuts.
 
 ingestion pipelines (web, cctv, social), core services (auth, billing, orgs, analytics, chat, patterns, notifications), bff and gateway layers, frontend clients. all of it deployed to cloudflare workers via a ci/cd pipeline that actually works.
